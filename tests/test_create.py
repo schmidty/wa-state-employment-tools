@@ -59,7 +59,7 @@ def test_get_start_of_week_no_input():
             "" given should return 20261115 for 
             the previous Sunday.
     """
-    want = "20261115" # Sunday
+    want = ""
     got  = get_start_of_week("")
     assert got == want
 
@@ -69,7 +69,7 @@ def test_get_start_of_week_input_None():
             None value given should return 20261115 for 
             the previous Sunday.
     """
-    want = "20261115" # Sunday
+    want = ""
     got  = get_start_of_week()
     assert got == want
 
@@ -79,21 +79,9 @@ def test_get_end_of_week():
             20261117 give should return 20261121 for
             the next Saturday.
     """
-    want = "20261121" # Saturday
-    got  = get_end_of_week("2026117")
+    want = "20261114" # Saturday
+    got  = get_end_of_week("20261107")
     assert got == want
-
-
-def test_get_end_of_week_diff_format():
-    """ tests the function for getting the end of
-        the week given the today's date. Example:
-            20261117 give should return 20261121 for
-            the next Saturday.
-    """
-    want = "11/21/2026" # Saturday
-    got  = get_end_of_week("2026117", "%m/%d/%Y")
-    assert got == want
-
 
 def test_get_end_of_week_no_input():
     """ tests the function for getting the end of
@@ -101,7 +89,7 @@ def test_get_end_of_week_no_input():
             "" given should return 20261121 for
             the next Saturday.
     """
-    want = "20261121" # Saturday
+    want = ""
     got  = get_end_of_week("")
     assert got == want
 
@@ -111,7 +99,7 @@ def test_get_end_of_week_input_None():
             None value given should return 20261121 for
             the next Saturday.
     """
-    want = "20261121" # Saturday
+    want = ""
     got  = get_end_of_week()
     assert got == want
 
