@@ -6,6 +6,7 @@ import pymupdf
 from datetime import datetime
 from pathlib import Path
 
+from create import is_module_installed
 from create import get_start_of_week
 from create import validate_datetime_string
 from create import get_end_of_week
@@ -15,9 +16,9 @@ from create import get_contact_type
 from create import remove_character
 from create import split_up_name
 from create import search_for_existing_file
-from create import set_font
 from create import parse_args
-from create import display_company_info
+from create import check_python_version
+from create import check_python_packages_installed
 
 # Functions and variable configs for tests
 test_pdf = "ESD-job-search-log-251110_Accessible.pdf"
@@ -215,30 +216,43 @@ def test_parse_args():
     args = parse_args(today, ["--extract"])
     assert args.extract == True
     
+def test_python_version():
+    """ This tests the function which checks the python required version """
+    want = True
+    got  = check_python_version()
+    assert got == want
+    
+def test_python_version_is_bad():
+    """ This tests the function which checks the python required version """
+    want = "This script requires Python 3.10 or higher."
+    got  = check_python_version(3.8)
+    assert got == want
 
-def test_display_company_info():
-    """ This tests the functionality of the returned value for the radio buttons. """
-    want = "Application Resume"
-    got  = display_company_info("application#2fresume")
-    assert want == got
+def test_package_is_installed_good():
+    """ Tests if a package is installed which it should be. """
+    want = True
+    got  = is_module_installed("pymupdf")
+    assert got == want
 
-    got  = display_company_info("application#2fresume#201")
-    assert want == got
+def test_package_is_installed_bad():
+    """ Tests if a package is installed which it should NOT be. """
+    want = False
+    got  = is_module_installed("numpy")
+    assert got == want
+    
+def test_check_packages_installed():
+    """ This tests the function which checks that the proper
+        packages are installed to run this application.
+    """
+    want = True
+    got  = check_python_packages_installed()
+    assert got == want
 
-    want = "Employer Contact"
-    got  = display_company_info("employer#20contact#203")
-    assert want == got
+def test_parse_args():
+    """ This tests the arguments from the command line """
+    today = "20261119"
+    args = parse_args(today, ["--extract"])
+    assert args.extract == True
+    
 
-    want = "Employer Contact"
-    got  = display_company_info("employer#20contact")
-    assert want == got
 
-    want = "WorkSource Activity"
-    got  = display_company_info("worksource#20activity")
-    assert want == got
-
-    want = "Other Activity"
-    got  = display_company_info("other#20activity")
-    assert want == got
-
- 

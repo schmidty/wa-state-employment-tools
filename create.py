@@ -5,7 +5,7 @@
 import argparse
 import datetime, shutil, sys
 import pymupdf
-import re
+import re, importlib
 
 from pathlib import Path
 
@@ -19,6 +19,38 @@ name_ssn_object = None
 activities = {1: "Employer#20contact", 2: "WorkSource#20activity", 3: "Other#20activity"}
 
 
+
+
+def check_python_version(test_version: float | None = 0) -> bool | str:
+    """ This function checks the python version required
+        to run this script else it returns an error
+        and exits.
+    """
+    exception_message = "This script requires Python 3.10 or higher."
+    if test_version > 0:
+        return exception_message
+    try:
+        if sys.version_info < (3, 10):
+            raise RuntimeError(exception_message)
+    except RuntimeError as r:
+        print("Error:", r)
+        sys.exit(1)
+    return True
+
+def is_module_installed(module_name: str) -> bool:
+    """ Checks if module is installed else returns None """
+    return importlib.util.find_spec(module_name) is not None
+
+
+def check_python_packages_installed() -> bool:
+    """ This function checks that the non-native
+        packages are installed to run this application.
+    """
+    required = ["pymupdf", "pytest"]
+    missing = [pkg for pkg in required if not is_module_installed(pkg)]
+    if missing:
+        print(f"missing modules: {', '.join(missing)}")
+    return True
 
 
 def validate_datetime_string(d: str):
@@ -112,9 +144,38 @@ def remove_character(c, v: str) -> str:
     return v.replace(c, " ")
 
 
-def interactive_employer_contact(data, contact_num: int):
+def interactive_other(data: dict[str, str], contact_num: int) -> dict[str, str]:
+    """This function asks all the 'other activity' information
+       in the ESD-job-search-log-251110_Accessible.pdf document.
+    """
+    data[f"What activity did you complete {contact_num}-2"] = input("What activity did you complete? ") or ""
+    data[f"What documentation do you have {contact_num}-2"] = input("What documentation do you have? ") or ""
+    yn = input("Does this look accurate [y=yes, n=no, default=n]? ") or "n"
+    if yn == "y":
+        return data
+
+    return None
+
+
+def interactive_worksource(data: dict[str, str], contact_num: int) -> dict[str, str]:
+    """This function asks all the 'worksource activity' information
+       in the ESD-job-search-log-251110_Accessible.pdf document.
+    """
+    data[f"What activity did you complete {contact_num}-1"] = input("What activity did you complete? ") or ""
+    data[f"What documentation do you have {contact_num}-1"] = input("What documentation do you have? ") or ""
+    data[f"Where did you complete this activity {contact_num}"] = input("Where did you complete this activity? ") or ""
+    data[f"City {contact_num}-2"] = input("What city? ") or ""
+    data[f"State {contact_num}-2"] = input("What state [default=WA]? ") or "WA"
+    yn = input("Does this look accurate [y=yes, n=no, default=n]? ") or "n"
+    if yn == "y":
+        return data
+
+    return None
+
+
+def interactive_employer_contact(data: dict[str, str], contact_num: int) -> dict[str, str]:
     """This function asks all the 'employer contact' information
-    in the ESD-job-search-log-251110_Accessible.pdf document.
+       in the ESD-job-search-log-251110_Accessible.pdf document.
     """
     print("\n")
     data[f"Contact date {contact_num} (MM/DD/YYYY)"] = input(
@@ -178,9 +239,9 @@ def interactive_employer_contact(data, contact_num: int):
                 case s if re.search(r" 1$", s):
                     print(f"{k.replace(' 1', '')}  :{v}:")
                 case s if re.search(r" \d\-\d", s):
-                    print(f"{k[:-4]}  :{display_company_info(v)}:")
+                    print(f"{k[:-4]}  :{v}:")
                 case _:
-                    print(f"{k}  :{display_company_info(v)}:")
+                    print(f"{k}  :{v}:")
 
 
     commit = (
@@ -188,24 +249,148 @@ def interactive_employer_contact(data, contact_num: int):
     )
     if commit == "y":
         return data
-    print("Exiting...")
+
+    return None
+
+
+def interactive_worksource(data: dict[str, str], contact_num: int) -> dict[str, str]:
+    """This function asks all the 'worksource activity' information
+       in the ESD-job-search-log-251110_Accessible.pdf document.
+    """
+    data[f"What activity did you complete {contact_num}-1"] = input("What activity did you complete? ") or ""
+    data[f"What documentation do you have {contact_num}-1"] = input("What documentation do you have? ") or ""
+    data[f"Where did you complete this activity {contact_num}"] = input("Where did you complete this activity? ") or ""
+    data[f"City {contact_num}-2"] = input("What city? ") or ""
+    data[f"State {contact_num}-2"] = input("What state [default=WA]? ") or "WA"
+    yn = input("Does this look accurate [y=yes, n=no, default=n]? ") or "n"
+    if yn == "y":
+        return data
+    # Incorrect entries as decided by the user... if new file then delete it.
+    print("Incorrect entries. Exiting...")
+    delete_empty_pdf_file(data)
     sys.exit(1)
 
-def display_company_info(v:str) -> str:
-    """ This function removes ugly strings within the PDF input docs """
-    match v.lower():
-        case "application#2fresume":
+
+def interactive_get_contact_date(data: dict[str, str], contact_num: int) -> dict[str, str]:
+    """ Ask the user for the contact date of these entries """
+    contact_date = f"Contact date 1 (MM/DD/YYYY)"
+    if contact_num == 2:
+        contact_date = f"Contact Date 2 MMDDYYYY"
+    elif contact_num == 3:
+        contact_date = f"Contact date (MM/DD/YYYY)"
+    print("\n")
+    today_formatted = datetime.now().strftime("%m/%d/%Y")
+    data[contact_date] = input(
+        f"What date was this contact made [MM/DD/YYYY, default={today_formatted}]? "
+    ) or today_formatted
+    #pprint(data, indent=4)
+    print(f"You stated :{data[contact_date]}:")
+    yn = input("Does this look accurate [y=yes, n=no, default=n]? ") or "n"
+    if yn == "y":
+        return data
+    # Incorrect entries as decided by the user... if new file then delete it.
+    print("Incorrect entries. Exiting...")
+    delete_empty_pdf_file(data)
+    sys.exit(1)
+
+
+def interactive_employer_contact(data: dict[str, str], contact_num: int) -> dict[str, str]:
+    """This function asks all the 'employer contact' information
+       in the ESD-job-search-log-251110_Accessible.pdf document.
+    """
+    data[f"Job title or job reference number {contact_num}"] = input(
+        "Job title or job reference number: "
+    )
+    data[f"Employer or business name {contact_num}"] = input(
+        "Employer or business name: "
+    )
+    make_contact = (
+        input(
+            "How did you make the contact? \n\t1. In Person\n\t2. Online\n\t3. By Phone\n\t4. By Email\n\t5. By Mail\n\t6. Other\n"
+        )
+        or 2
+    )
+    # Get contact information or by "Other"
+    if make_contact == 6:
+        data[f"Other {contact_num}"] = input("Describe 'Other': ")
+    else:
+        contact_1 = get_contact(args.contact_number, make_contact)
+        data[contact_1] = True
+
+    contact_type = (
+        input(
+            "Type of Contact? \n\t1. Application/Resume\n\t2. Interview\n\t3. Inquiry\n"
+        )
+        or 1
+    )
+    # Type of contact
+    if contact_num == 1:
+        data[f"Type of contact (Choose one)"] = get_contact_type(contact_num, contact_type)
+    else:
+        data[f"Type of contact {contact_num} Choose 1"] = get_contact_type(contact_num, contact_type)
+
+
+    # Employer information
+    data[f"Employer address {contact_num}"] = input("Company Address: ")
+    data[f"City {contact_num}-1"] = input("Company City [default=Spokane]: ") or "Spokane"
+    data[f"State {contact_num}-1"] = (
+        input("Company State [WA=Washington]: ") or "WA"
+    )
+    data[f"Website or email address {contact_num}"] = input(
+        "Company Email or Website: "
+    )
+    data[f"Phone number {contact_num}"] = input(
+        "Company Phone number: "
+    )
+    # Check answers
+    print(
+        "\nYou made the following choices. Should answers be used?\n===================================="
+    )
+
+    # Verify entries (we show raw keys and values here)
+    for k, v in data.items():
+        if v != "" or v == True:
+            print(f"{k}  :{display_activity(v)}:")
+
+    commit = (
+        input("====================================\nUse this? [y=Yes/N=No] ") or "n"
+    )
+    if commit == "y":
+        return data
+
+    # Incorrect entries as decided by the user... if new file then delete it.
+    print("Incorrect entries. Exiting...")
+    delete_empty_pdf_file(data)
+    sys.exit(1)
+
+
+def delete_empty_pdf_file(data: dict[str, str]) -> bool:
+    """ This function checks on the file and whether it should be deleted if new document or empty. """
+    if data['job-search-week (MM/DD/YYYY)'] == "" and data['Name (Last, First, Middle)'] == "" and data['ID or SSN'] == "":
+        original_pdf.unlink(missing_ok=True)
+        return True
+    elif new_doc:
+        original_pdf.unlink(missing_ok=True)
+        return True
+    return False
+
+
+
+def display_activity(v: str) -> str:
+    """ redisplay the activity and remove ugly formatting values """
+    match v:
+        case "Application#2FResume#201":
             return "Application Resume"
-        case "application#2fresume#201":
+        case "Application#2Fresume#201":
             return "Application Resume"
-        case "employer#20contact#203":
+        case "Employer#20contact":
             return "Employer Contact"
-        case "employer#20contact":
+        case "Employer#20Contact":
             return "Employer Contact"
-        case "worksource#20activity":
+        case "WorkSource#20Activity":
             return "WorkSource Activity"
-        case "other#20activity":
-            return "Other Activity"
+        case "WorkSource#20activity":
+            return "WorkSource Activity"
         case _:
             return v
     return v
@@ -251,19 +436,28 @@ def ask_name_ssn(data: dict[str, str]) -> dict[str, str]:
 
     yn = input("Does this look accurate? [y=yes, N=no, default=N] ") or "N"
     if yn == "N":
-        print("Not accurate. Exiting...")
-        sys.exit(1)
+        if data is None:
+            Path(new_filename).unlink(missing_ok=True)
+            print("Data entered is not accurate. Exiting...")
+            sys.exit(1)
     return data
 
 
-def set_font(f):
-    """Set the font size one half more than what it currently is at."""
-    # if widget.field_type == pymupdf.PDF_WIDGET_TYPE_TEXT:
-    ## If text_fontsize is 0, the PDF viewer auto-scales the text.
-    ## Fall back to a sensible default (like 12) before adding 1.
-    # current_size = widget.text_fontsize if widget.text_fontsize > 0 else 12
-    # widget.text_fontsize = current_size + parseFloat(0.5)
-    # widget.update()
+def set_font_size(widget: pymupdf.Widget, font_size: float=0.5) -> pymupdf.Widget:
+    """Set the font size is set. If it currently greater than zero then add to the size else subtract from it. """
+    if widget.field_type == pymupdf.PDF_WIDGET_TYPE_TEXT:
+        # If text_fontsize is 0, the PDF viewer auto-scales the text.
+        # Fall back to a sensible default (like 12) before adding 1.
+        #current_size = widget.text_fontsize if widget.text_fontsize > 0 else 12
+        if args.overwrite:
+            return widget  # We don't want the font to get bigger
+        if widget.text_fontsize > 0:
+            current_size = widget.text_fontsize
+            widget.text_fontsize = current_size + float(font_size)
+        else:
+            current_size = 12
+            widget.text_fontsize = current_size - float(font_size)
+        widget.update()
     return widget
 
 
@@ -271,8 +465,8 @@ def parse_args(today: date, argv: list[str] | None = None) -> argparse.Namespace
     """ This function is set up as middleware for testing and configuration """
     parser = argparse.ArgumentParser("Create a ESD job search log for the week.")
     parser.add_argument(
-        "-d",
-        "--date",
+        "-t",
+        "--today",
         default=today,
         help="The start date given for the week or today. This will create the start of the weekday for Sunday in the filename with default being today's date.",
     )
@@ -286,14 +480,32 @@ def parse_args(today: date, argv: list[str] | None = None) -> argparse.Namespace
     parser.add_argument(
         "-a",
         "--activity",
-        default=1,
+        default='1',
         help="The contact activity for this edit. [1=Employer activity, 2=WorkSource activity, 3=Other activity, default=1]",
+    )
+    parser.add_argument(
+        "-o",
+        "--overwrite",
+        action='store_true',
+        help="Overwrite existing PDF document. WARNING: This is a dangerous command with an existing PDF document!",
+    )
+    parser.add_argument(
+        "-b",
+        "--topheader",
+        action='store_true',
+        help="Fill out header information [Job-search log for week ending, Name, ID-SSN]",
     )
     parser.add_argument(
         "-x",
         "--extract",
         action="store_true",
         help="This will extract and debug the field information for the PDF.",
+    )
+    parser.add_argument(
+        "-d",
+        "--debug",
+        action="store_true",
+        help="This will debug the application where debug statements are set.",
     )
     parser.add_argument(
         "-z",
@@ -308,6 +520,8 @@ def parse_args(today: date, argv: list[str] | None = None) -> argparse.Namespace
 
 # RUN IT: cli arguments
 if __name__ == "__main__":
+    check_python_version()
+    check_python_packages_installed()
     today = date.today()
     args = parse_args(today.strftime("%Y%m%d"))
 
@@ -317,13 +531,13 @@ if __name__ == "__main__":
     display_input = {}
 
     # Setup new PDF, use existing PDF or use argument filepath given by user for PDF.
-    existing = search_for_existing_file(args.date)
+    existing = search_for_existing_file(args.today)
     if existing is not None:
         original_pdf = existing
     elif args.filepath:
         original_pdf = args.filepath
     else:
-        new_filename = f"ESD-job-search-log-{get_start_of_week(args.date)}_{get_end_of_week(args.date)}.pdf"
+        new_filename = f"ESD-job-search-log-{get_start_of_week(args.today)}_{get_end_of_week(args.today)}.pdf"
         shutil.copy2(original_pdf, new_filename)
         original_pdf = new_filename
         new_doc = True
@@ -386,42 +600,133 @@ if __name__ == "__main__":
 
 
     # Get personal information of unemployed user filling out this form and set today's date.
-    if new_doc:
+    if new_doc or args.topheader:
         data = ask_name_ssn(data)
-        original_pdf = new_filename
         data["job-search-week (MM/DD/YYYY)"] = get_end_of_week(today.strftime("%Y%m%d"), "%m/%d/%Y")
 
 
     # Set up interactive questions for this PDF.
+    data = interactive_get_contact_date(data, int(args.contact_number))
     match args.activity:
-        case 1:  # Employer activity
-            data = interactive_employer_contact(data, args.contact_number)
-        case 2:  # WorkSource activity
-            print("run worksource")
-        case 3:  # Other activity
-            print("run other")
+        case '1':  # Employer activity
+            print("\nQuestions for 'Employer Activity':")
+            data = interactive_employer_contact(data, int(args.contact_number))
+        case '2':  # WorkSource activity
+            print("\nQuestions for 'WorkSource Activity':")
+            data = interactive_worksource(data, int(args.contact_number))
+        case '3':  # Other activity
+            print("\nQuestions for 'Other Activity':")
+            data = interactive_other(data, int(args.contact_number))
+
+    # If no data returned that means the user did not accept the entries. If a new PDF document then delete it.
+    if data is None and new_doc:
+        Path(original_pdf).unlink(missing_ok=True)
+        print("Data entered is not accurate. Exiting...")
+        sys.exit(1)
 
 
     # Set activity type
-    data[f'Activity type {args.activity}'] = True
-
+    data['Activity type 1'] = True
 
     # @TODO: remove this printout of a formatted dictionary
-    pprint(data, indent=4)
-
+    #pprint(data, indent=4)
 
     # Update the document
     for page_num, page in enumerate(doc):
         for widget in page.widgets():
             # Radio buttons
             if widget.field_type == pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON:
-                if  widget.field_name in data and data[widget.field_name] == True and widget.on_state() == activities[args.activity]:
+                if  widget.field_name in data and data[widget.field_name] == True and widget.on_state() == activities[int(args.activity)]:
                     widget.field_value = widget.on_state()
                     widget.update()
                     print(f"updated radiobutton activity {widget.field_name}")
                 #elif widget.field_name[0:15] == 'Type of contact' and data[widget.field_name] != "" and widget.on_state() == data[widget.field_name]:
                 elif widget.field_name[0:15] == 'Type of contact' and data[widget.field_name] != "":
-                    print(f"checking :{widget.field_name}: with :{data[widget.field_name]}: == :{widget.on_state()}:")
+                    #print(f"checking :{widget.field_name}: with :{data[widget.field_name]}: == :{widget.on_state()}:")
+                    if widget.on_state() == data[widget.field_name]:
+                        widget.field_value = widget.on_state()
+                        widget.update()
+                        print(f"updated radiobutton type of contact {widget.field_name} with {data[widget.field_name]} == {widget.on_state()}")
+                    else:
+                        widget.field_value = False
+                        widget.update()
+
+                else:
+                    widget.field_value = False
+                    widget.update()
+            
+            # Check boxes
+            elif widget.field_type == pymupdf.PDF_WIDGET_TYPE_CHECKBOX and data[widget.field_name] != "" and (widget.field_value == "" or args.overwrite == True):
+                widget = set_font_size(widget, 3) # Subtract from size
+                widget.field_value = data[widget.field_name]
+                widget.update()
+                print(f"updated input field {widget.field_name}")
+
+            # Standard fields
+            elif widget.field_type == pymupdf.PDF_WIDGET_TYPE_TEXT and data[widget.field_name] != "" and (widget.field_value == "" or args.overwrite == True):
+                widget = set_font_size(widget, 3) # Subtract from size
+                widget.field_value = data[widget.field_name]
+                widget.update()
+                print(f"updated input field {widget.field_name}")
+            elif args.debug and data[widget.field_name] != "":
+                print(f"FAILED field key :{widget.field_name}:, value :{data[widget.field_name]}:")
+
+
+
+    print(f"saving {original_pdf}...")
+    doc.save(original_pdf, incremental=True, encryption=pymupdf.PDF_ENCRYPT_KEEP)
+    doc.close()
+
+
+    # Get personal information of unemployed user filling out this form and set today's date.
+    if new_doc:
+        data = ask_name_ssn(data)
+        if data is None:
+            Path(new_filename).unlink(missing_ok=True)
+            print("Data entered is not accurate. Exiting...")
+            sys.exit(1)
+
+        original_pdf = new_filename
+        data["job-search-week (MM/DD/YYYY)"] = get_end_of_week(today.strftime("%Y%m%d"), "%m/%d/%Y")
+
+
+    # Set up interactive questions for this PDF.
+    match args.activity:
+        case '1':  # Employer activity
+            print("Questions for 'Employer Activity':")
+            data = interactive_employer_contact(data, args.contact_number)
+        case '2':  # WorkSource activity
+            print("Questions for 'WorkSource Activity':")
+            data = interactive_worksource(data, args.contact_number)
+        case '3':  # Other activity
+            print("Questions for 'Other Activity':")
+            data = interactive_other(data, args.contact_number)
+
+    # If no data returned that means the user did not accept the entries. If a new PDF document then delete it.
+    if data is None and new_doc:
+        Path(original_pdf).unlink(missing_ok=True)
+        print("Data entered is not accurate. Exiting...")
+        sys.exit(1)
+
+
+    # Set activity type
+    data['Activity type 1'] = True
+
+    # @TODO: remove this printout of a formatted dictionary
+    #pprint(data, indent=4)
+
+    # Update the document
+    for page_num, page in enumerate(doc):
+        for widget in page.widgets():
+            # Radio buttons
+            if widget.field_type == pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON:
+                if  widget.field_name in data and data[widget.field_name] == True and widget.on_state() == activities[int(args.activity)]:
+                    widget.field_value = widget.on_state()
+                    widget.update()
+                    print(f"updated radiobutton activity {widget.field_name}")
+                #elif widget.field_name[0:15] == 'Type of contact' and data[widget.field_name] != "" and widget.on_state() == data[widget.field_name]:
+                elif widget.field_name[0:15] == 'Type of contact' and data[widget.field_name] != "":
+                    #print(f"checking :{widget.field_name}: with :{data[widget.field_name]}: == :{widget.on_state()}:")
                     if widget.on_state() == data[widget.field_name]:
                         widget.field_value = widget.on_state()
                         widget.update()
