@@ -178,9 +178,9 @@ def interactive_employer_contact(data, contact_num: int):
                 case s if re.search(r" 1$", s):
                     print(f"{k.replace(' 1', '')}  :{v}:")
                 case s if re.search(r" \d\-\d", s):
-                    print(f"{k[:-4]}  :{v}:")
+                    print(f"{k[:-4]}  :{display_company_info(v)}:")
                 case _:
-                    print(f"{k}  :{unquote(v)}:")
+                    print(f"{k}  :{display_company_info(v)}:")
 
 
     commit = (
@@ -190,6 +190,25 @@ def interactive_employer_contact(data, contact_num: int):
         return data
     print("Exiting...")
     sys.exit(1)
+
+def display_company_info(v:str) -> str:
+    """ This function removes ugly strings within the PDF input docs """
+    match v.lower():
+        case "application#2fresume":
+            return "Application Resume"
+        case "application#2fresume#201":
+            return "Application Resume"
+        case "employer#20contact#203":
+            return "Employer Contact"
+        case "employer#20contact":
+            return "Employer Contact"
+        case "worksource#20activity":
+            return "WorkSource Activity"
+        case "other#20activity":
+            return "Other Activity"
+        case _:
+            return v
+    return v
 
 
 def split_up_name(v: str) -> str:

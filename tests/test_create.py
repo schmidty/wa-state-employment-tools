@@ -17,6 +17,7 @@ from create import split_up_name
 from create import search_for_existing_file
 from create import set_font
 from create import parse_args
+from create import display_company_info
 
 # Functions and variable configs for tests
 test_pdf = "ESD-job-search-log-251110_Accessible.pdf"
@@ -215,3 +216,29 @@ def test_parse_args():
     assert args.extract == True
     
 
+def test_display_company_info():
+    """ This tests the functionality of the returned value for the radio buttons. """
+    want = "Application Resume"
+    got  = display_company_info("application#2fresume")
+    assert want == got
+
+    got  = display_company_info("application#2fresume#201")
+    assert want == got
+
+    want = "Employer Contact"
+    got  = display_company_info("employer#20contact#203")
+    assert want == got
+
+    want = "Employer Contact"
+    got  = display_company_info("employer#20contact")
+    assert want == got
+
+    want = "WorkSource Activity"
+    got  = display_company_info("worksource#20activity")
+    assert want == got
+
+    want = "Other Activity"
+    got  = display_company_info("other#20activity")
+    assert want == got
+
+ 

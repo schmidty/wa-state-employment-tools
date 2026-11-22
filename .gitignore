@@ -1,0 +1,6 @@
+.venv/
+ESD-job-search-log-202*.pdf
+*.sw*
+**/__pycache__
+__pycache__
+
