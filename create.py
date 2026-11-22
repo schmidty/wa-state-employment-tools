@@ -4,7 +4,7 @@
 #
 import argparse
 import datetime, shutil, sys
-import pymupdf
+import pymupdf, os
 import re, importlib
 
 from pathlib import Path
@@ -165,7 +165,7 @@ def interactive_worksource(data: dict[str, str], contact_num: int) -> dict[str, 
     data[f"What activity did you complete {contact_num}-1"] = input("What activity did you complete? ") or ""
     data[f"What documentation do you have {contact_num}-1"] = input("What documentation do you have? ") or ""
     data[f"Where did you complete this activity {contact_num}"] = input("Where did you complete this activity? ") or ""
-    data[f"City {contact_num}-2"] = input("What city? ") or ""
+    data[f"City {contact_num}-2"] = input("What city? [default=Spokane]") or "Spokane"
     data[f"State {contact_num}-2"] = input("What state [default=WA]? ") or "WA"
     yn = input("Does this look accurate [y=yes, n=no, default=n]? ") or "n"
     if yn == "y":
@@ -230,7 +230,7 @@ def interactive_employer_contact(data: dict[str, str], contact_num: int) -> dict
     # Verify entries (we show raw keys and values here)
     for k, v in data.items():
         if v != "" or v == True:
-            print(f"{k}  :{display_activity(v)}:")
+            print(f"{remove_numbers(k)}  :{display_activity(v)}:")
 
     commit = (
         input("====================================\nUse this? [y=Yes/N=No] ") or "n"
@@ -263,18 +263,6 @@ def interactive_get_contact_date(data: dict[str, str], contact_num: int) -> dict
     return None
 
 
-def delete_empty_pdf_file(data: dict[str, str], original_pdf: pymupdf) -> bool:
-    """ This function checks on the file and whether it should be deleted if new document or empty. """
-    if data['job-search-week (MM/DD/YYYY)'] == "" and data['Name (Last, First, Middle)'] == "" and data['ID or SSN'] == "":
-        original_pdf.unlink(missing_ok=True)
-        return True
-    elif new_doc:
-        original_pdf.unlink(missing_ok=True)
-        return True
-    return False
-
-
-
 def display_activity(v: str) -> str:
     """ redisplay the activity and remove ugly formatting values """
     match v:
@@ -294,6 +282,11 @@ def display_activity(v: str) -> str:
             return v
     return v
 
+def remove_numbers(k: str) -> str:
+    """ This removes the numbers in a string value like '1', '1-1', '2-1', '2-2', '3-1', '3-2'
+    when displaying the company's address information; it cleans it up
+    """
+    return re.sub(r"[0-9\-]{0,3}", "", k, count=0).strip()
 
 def split_up_name(v: str) -> str:
     """This function will accept an input string value only
@@ -303,6 +296,25 @@ def split_up_name(v: str) -> str:
         return ""
     parts = v.split()
     return f"{parts[2]}, {parts[0]} {parts[1]}"
+
+
+def remove_pdf_file(f:str):
+    """ Delete a PDF file by given filepath """
+    if f == "":
+        print("PDF filepath not given. Try again...")
+        return False
+    try:
+        if os.path.exists(f):
+            yn = input(f"PDF file found.\nAre you sure you want to delete file '{f}'?\nOnce deleted it is gone!\n[y=yes, default=no] ")
+            if yn == "y":
+                Path(f).unlink(missing_ok=True)
+                print(f"PDF file {f} has been deleted.")
+            else:
+                print("Exiting...")
+        else:
+            raise Exception(f"file does not exist: {f}")
+    except ValueError as e:
+        print("error: ", e)
 
 
 def search_for_existing_file(d: str) -> str:
@@ -319,6 +331,13 @@ def search_for_existing_file(d: str) -> str:
     for file_path in search_dir.rglob(potential_filename):
         return file_path
     return ret
+
+def check_header_not_filled_in(d: dict[str, str]) -> bool:
+    """ This function checks to see if the header values 'job-search-week (MM/DD/YYYY)', 
+    'Name (Last, First, Middle)' and 'ID or SSN' have been filled in with the existing
+    document and if not returns False else True
+    """
+    return d['job-search-week (MM/DD/YYYY)'] == "" and d['Name (Last, First, Middle)'] == "" and d['ID or SSN'] == ""
 
 
 def ask_name_ssn(data: dict[str, str]) -> dict[str, str] | None:
@@ -339,7 +358,6 @@ def ask_name_ssn(data: dict[str, str]) -> dict[str, str] | None:
     if yn == "y":
         return data
     # If no data returned that means the user did not accept the entries. If a new PDF document then delete it.
-    delete_empty_pdf_file(data, original_pdf)
     sys.exit(1)
 
 
@@ -390,10 +408,9 @@ def parse_args(today: date, argv: list[str] | None = None) -> argparse.Namespace
         help="Overwrite existing PDF document. WARNING: This is a dangerous command with an existing PDF document!",
     )
     parser.add_argument(
-        "-b",
-        "--topheader",
-        action='store_true',
-        help="Fill out header information [Job-search log for week ending, Name, ID-SSN]",
+        "-r",
+        "--remove",
+        help="Delete a PDF files by filepath. Example: python create.py --remove 'ESD-job-search-log-20261122_20261128.pdf' ",
     )
     parser.add_argument(
         "-x",
@@ -429,6 +446,11 @@ if __name__ == "__main__":
     new_doc = False
     data = {}
     display_input = {}
+
+    # remove pdf file
+    if args.remove:
+        remove_pdf_file(args.remove)
+        sys.exit(0)
 
     # Setup new PDF, use existing PDF or use argument filepath given by user for PDF.
     existing = search_for_existing_file(args.today)
@@ -474,7 +496,7 @@ if __name__ == "__main__":
 
             # NOTE: Set up variables which is needed for the functionality. 
             # This is for the data updates.
-            data[widget.field_name] = ""
+            data[widget.field_name] = widget.field_value if widget.field_value != "" else ""
             # This is for referenning. I could have done one object but it seemed like it would be complex. This is much simpler.
             display_input[widget.field_name] = widget.field_type
 
@@ -500,7 +522,7 @@ if __name__ == "__main__":
 
 
     # Get personal information of unemployed user filling out this form and set today's date.
-    if new_doc or args.topheader:
+    if check_header_not_filled_in(data):
         data = ask_name_ssn(data)
         data["job-search-week (MM/DD/YYYY)"] = get_end_of_week(today.strftime("%Y%m%d"), "%m/%d/%Y")
 
@@ -508,23 +530,23 @@ if __name__ == "__main__":
     # Set up interactive questions for this PDF.
     data = interactive_get_contact_date(data, int(args.contact_number))
     if data is None and new_doc:
-        delete_empty_pdf_file(data, original_pdf)
+        print("Exiting...")
         sys.exit(1)
 
     match args.activity:
-        case 1:  # Employer activity
+        case "1":  # Employer activity
             print("\nQuestions for 'Employer Activity':")
             data = interactive_employer_contact(data, int(args.contact_number))
-        case 2:  # WorkSource activity
+        case "2":  # WorkSource activity
             print("\nQuestions for 'WorkSource Activity':")
             data = interactive_worksource(data, int(args.contact_number))
-        case 3:  # Other activity
+        case "3":  # Other activity
             print("\nQuestions for 'Other Activity':")
             data = interactive_other(data, int(args.contact_number))
 
     # If no data returned that means the user did not accept the entries. If a new PDF document then delete it.
     if data is None and new_doc:
-        delete_empty_pdf_file(data, original_pdf)
+        print("Exiting...")
         sys.exit(1)
 
 

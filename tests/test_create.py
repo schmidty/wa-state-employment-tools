@@ -19,6 +19,8 @@ from create import search_for_existing_file
 from create import parse_args
 from create import check_python_version
 from create import check_python_packages_installed
+from create import remove_numbers
+from create import check_header_not_filled_in
 
 # Functions and variable configs for tests
 test_pdf = "ESD-job-search-log-251110_Accessible.pdf"
@@ -242,5 +244,75 @@ def test_parse_args():
     args = parse_args(today, ["--extract"])
     assert args.extract == True
     
+
+def test_remove_numbers():
+    """ Tests the functionality of removing numbers from the company's address information for display """
+    want = "City"
+    got  = remove_numbers("City 1-1")
+    assert got == want
+
+    want = "Contact Date  MMDDYYYY"
+    got = remove_numbers("Contact Date 2 MMDDYYYY")
+    assert got == want
+
+    want = "What activity did you complete"
+    got = remove_numbers("What activity did you complete 1-2")
+    assert got == want
+
+    want = "State"
+    got = remove_numbers("State 2-2")
+    assert got == want
+
+    want = "What activity did you complete"
+    got = remove_numbers("What activity did you complete 3-2")
+    assert got == want
+
+    want = "Type of contact  Choose"
+    got = remove_numbers("Type of contact 2 Choose 1")
+    assert got == want
+
+
+def test_check_header_not_filled_in():
+    """ Tests function for header values not being filled in returns True else False """
+    want = True
+    got  = check_header_not_filled_in({
+        "job-search-week (MM/DD/YYYY)": "",
+        "Name (Last, First, Middle)": "",
+        "ID or SSN": "",
+    })
+    assert got == want
+
+    want = False
+    got  = check_header_not_filled_in({
+        "job-search-week (MM/DD/YYYY)": "11/18/2026",
+        "Name (Last, First, Middle)": "",
+        "ID or SSN": "",
+    })
+    assert got == want
+
+    want = False
+    got  = check_header_not_filled_in({
+        "job-search-week (MM/DD/YYYY)": "11/18/2026",
+        "Name (Last, First, Middle)": "Jones, Robert Thomas",
+        "ID or SSN": "123-45-6789",
+    })
+    assert got == want
+
+    want = False
+    got  = check_header_not_filled_in({
+        "job-search-week (MM/DD/YYYY)": "",
+        "Name (Last, First, Middle)": "Jones, Robert Thomas",
+        "ID or SSN": "123-45-6789",
+    })
+    assert got == want
+
+
+
+
+
+
+
+
+
 
 
