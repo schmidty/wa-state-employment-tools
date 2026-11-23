@@ -4,6 +4,10 @@ This application will fill out the PDF found at [esd.wa.gov/job-search-log](http
 - It requires Python 3.10+ to run.
 - It requires having a clean, empty `ESD-job-search-log-251110 Accessible.pdf` document in the same folder.
 
+## Load Python 3 Requirements
+```
+pip install -r requirements.txt
+```
 
 ## Run Application
 ```
